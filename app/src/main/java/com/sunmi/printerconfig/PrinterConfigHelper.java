@@ -111,7 +111,7 @@ public class PrinterConfigHelper {
             // Try Format 2: Alternative Sunmi format with length prefix
             Log.d(TAG, "Trying Format 2: Length-prefixed format");
             int totalLen = ssidBytes.length + passwordBytes.length + 2;
-            out.write(new byte[]{0x1B, 0x1F, 0x91});
+            out.write(new byte[]{0x1B, 0x1F, (byte)0x91});
             out.write((byte)totalLen);
             out.write((byte)ssidBytes.length);
             out.write(ssidBytes);
