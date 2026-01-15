@@ -118,7 +118,7 @@ public class WifiConfigActivity extends AppCompatActivity implements SunmiPrinte
 
             // Create a manual Router object
             Router manualRouter = new Router();
-            manualRouter.setEssid(ssid);
+            manualRouter.setEssid(ssid.getBytes());
             manualRouter.setName(ssid);
             manualRouter.setHasPwd(!password.isEmpty());
             configurePrinter(manualRouter, password);
