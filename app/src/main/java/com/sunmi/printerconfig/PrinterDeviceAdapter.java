@@ -29,7 +29,7 @@ public class PrinterDeviceAdapter extends RecyclerView.Adapter<PrinterDeviceAdap
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View view = LayoutInflater.from(parent.getContext())
-            .inflate(R.layout.item_device, parent, false);
+            .inflate(R.layout.item_bluetooth_device, parent, false);
         return new ViewHolder(view);
     }
 
