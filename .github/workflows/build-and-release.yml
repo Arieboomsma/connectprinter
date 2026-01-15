@@ -25,14 +25,14 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Build Release APK
-      run: ./gradlew assembleRelease --no-daemon
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug --no-daemon
 
     - name: Find and prepare APK
       id: apk_info
       run: |
         # Find the built APK
-        APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+        APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" | head -1)
         echo "Found APK at: $APK_PATH"
 
         # Extract version from build.gradle
@@ -45,7 +45,7 @@ jobs:
         # Set outputs
         echo "APK_PATH=$APK_PATH" >> $GITHUB_OUTPUT
         echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_OUTPUT
-        echo "APK_NAME=BrightKitchen-PrinterConnect-v${VERSION_NAME}-release.apk" >> $GITHUB_OUTPUT
+        echo "APK_NAME=BrightKitchen-PrinterConnect-v${VERSION_NAME}-debug.apk" >> $GITHUB_OUTPUT
 
     - name: Upload APK as artifact
       uses: actions/upload-artifact@v4
