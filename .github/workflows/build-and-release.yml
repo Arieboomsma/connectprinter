@@ -26,30 +26,36 @@ jobs:
     - name: Build Release APK
       run: ./gradlew assembleRelease --no-daemon
 
-    - name: Get version name
-      id: version
+    - name: Find and prepare APK
+      id: apk_info
       run: |
-        VERSION_NAME=$(grep "versionName" app/build.gradle | awk '{print $2}' | tr -d '"')
+        # Find the built APK
+        APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+        echo "Found APK at: $APK_PATH"
+
+        # Extract version from build.gradle
+        VERSION_NAME=$(grep -E '^\s*versionName\s+' app/build.gradle | sed 's/.*versionName\s*"\(.*\)".*/\1/')
+        if [ -z "$VERSION_NAME" ]; then
+          VERSION_NAME="1.0"
+        fi
+        echo "Version: $VERSION_NAME"
+
+        # Set outputs
+        echo "APK_PATH=$APK_PATH" >> $GITHUB_OUTPUT
         echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_OUTPUT
         echo "APK_NAME=BrightKitchen-PrinterConnect-v${VERSION_NAME}-release.apk" >> $GITHUB_OUTPUT
-
-    - name: Find APK file
-      id: find_apk
-      run: |
-        APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
-        echo "APK_PATH=$APK_PATH" >> $GITHUB_OUTPUT
 
     - name: Upload APK as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ steps.version.outputs.APK_NAME }}
-        path: ${{ steps.find_apk.outputs.APK_PATH }}
+        name: ${{ steps.apk_info.outputs.APK_NAME }}
+        path: ${{ steps.apk_info.outputs.APK_PATH }}
 
     - name: Create or Update Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: v${{ steps.version.outputs.VERSION_NAME }}
-        name: Bright Kitchen Printer Connect v${{ steps.version.outputs.VERSION_NAME }}
+        tag_name: v${{ steps.apk_info.outputs.VERSION_NAME }}
+        name: Bright Kitchen Printer Connect v${{ steps.apk_info.outputs.VERSION_NAME }}
         body: |
           # Bright Kitchen Printer Connect
 
@@ -65,7 +71,7 @@ jobs:
           - WiFi configuration now uses BLE (Bluetooth Low Energy)
           - Printer automatically scans and displays available WiFi networks
           - Improved reliability and compatibility
-        files: ${{ steps.find_apk.outputs.APK_PATH }}
+        files: ${{ steps.apk_info.outputs.APK_PATH }}
         draft: false
         prerelease: false
       env:
