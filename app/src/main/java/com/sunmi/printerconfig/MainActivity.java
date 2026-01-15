@@ -320,10 +320,19 @@ public class MainActivity extends AppCompatActivity implements SunmiPrinterClien
             .setMessage(message)
             .setPositiveButton("Retry", (dialog, which) -> {
                 if (selectedDevice != null) {
+                    Log.d(TAG, "User chose to retry connection");
                     onDeviceClick(selectedDevice);
                 }
             })
-            .setNegativeButton("Cancel", (dialog, which) -> {
+            .setNegativeButton("Scan Again", (dialog, which) -> {
+                Log.d(TAG, "User chose to scan again");
+                selectedDevice = null;
+                // Automatically start a new scan
+                if (checkPermissions()) {
+                    startPrinterScan();
+                }
+            })
+            .setNeutralButton("Cancel", (dialog, which) -> {
                 selectedDevice = null;
                 statusText.setText("Tap Scan to find printers");
             })
