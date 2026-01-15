@@ -5,6 +5,7 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -27,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class WifiConfigActivity extends AppCompatActivity implements SunmiPrinterClient.IPrinterClient {
+    private static final String TAG = "WifiConfigActivity";
     private static final int PERMISSION_REQUEST_CODE = 3;
 
     private String bleAddress;
@@ -79,6 +81,7 @@ public class WifiConfigActivity extends AppCompatActivity implements SunmiPrinte
     }
 
     private void startPrinterWifiScan() {
+        Log.d(TAG, "Starting WiFi scan for printer: " + bleAddress);
         scanWifiButton.setEnabled(false);
         scanProgressBar.setVisibility(View.VISIBLE);
         statusText.setText("Getting Wi-Fi networks from printer...");
@@ -87,6 +90,7 @@ public class WifiConfigActivity extends AppCompatActivity implements SunmiPrinte
 
         // Use Sunmi SDK to get WiFi list from printer
         sunmiPrinterClient.getPrinterWifiList(bleAddress);
+        Log.d(TAG, "Called getPrinterWifiList()");
     }
 
     private void onNetworkSelected(Router router) {
@@ -144,6 +148,7 @@ public class WifiConfigActivity extends AppCompatActivity implements SunmiPrinte
     }
 
     private void configurePrinter(Router router, String password) {
+        Log.d(TAG, "Configuring WiFi for network: " + router.getName());
         scanWifiButton.setEnabled(false);
         manualEntryButton.setEnabled(false);
         scanProgressBar.setVisibility(View.VISIBLE);
@@ -151,6 +156,7 @@ public class WifiConfigActivity extends AppCompatActivity implements SunmiPrinte
 
         // Use Sunmi SDK to configure printer WiFi
         sunmiPrinterClient.setPrinterWifi(bleAddress, router.getEssid(), password);
+        Log.d(TAG, "Called setPrinterWifi()");
     }
 
     // IPrinterClient callback methods
@@ -163,6 +169,7 @@ public class WifiConfigActivity extends AppCompatActivity implements SunmiPrinte
     @Override
     public void routerFound(Router router) {
         // Called for each WiFi network found by the printer
+        Log.d(TAG, "Router found: " + router.getName() + " (secured: " + router.isHasPwd() + ")");
         runOnUiThread(() -> {
             wifiNetworks.add(router);
             wifiAdapter.notifyDataSetChanged();
@@ -172,6 +179,7 @@ public class WifiConfigActivity extends AppCompatActivity implements SunmiPrinte
     @Override
     public void onGetWifiListFinish() {
         // Called when WiFi list retrieval is complete
+        Log.d(TAG, "WiFi list retrieval finished. Found " + wifiNetworks.size() + " networks");
         runOnUiThread(() -> {
             scanProgressBar.setVisibility(View.GONE);
             scanWifiButton.setEnabled(true);
@@ -187,6 +195,7 @@ public class WifiConfigActivity extends AppCompatActivity implements SunmiPrinte
     @Override
     public void onGetWifiListFail() {
         // Called when WiFi list retrieval fails
+        Log.e(TAG, "Failed to get WiFi list from printer");
         runOnUiThread(() -> {
             scanProgressBar.setVisibility(View.GONE);
             scanWifiButton.setEnabled(true);
@@ -198,6 +207,7 @@ public class WifiConfigActivity extends AppCompatActivity implements SunmiPrinte
     @Override
     public void onSetWifiSuccess() {
         // Called when WiFi configuration command is sent successfully
+        Log.d(TAG, "WiFi config command sent successfully");
         runOnUiThread(() -> {
             statusText.setText("Configuring WiFi...");
         });
@@ -206,6 +216,7 @@ public class WifiConfigActivity extends AppCompatActivity implements SunmiPrinte
     @Override
     public void wifiConfigSuccess() {
         // Called when WiFi configuration is confirmed successful
+        Log.d(TAG, "WiFi configuration confirmed successful!");
         runOnUiThread(() -> {
             new Handler().postDelayed(() -> {
                 scanProgressBar.setVisibility(View.GONE);
@@ -221,6 +232,7 @@ public class WifiConfigActivity extends AppCompatActivity implements SunmiPrinte
     @Override
     public void onWifiConfigFail() {
         // Called when WiFi configuration fails
+        Log.e(TAG, "WiFi configuration failed");
         runOnUiThread(() -> {
             scanProgressBar.setVisibility(View.GONE);
             scanWifiButton.setEnabled(true);
@@ -233,6 +245,7 @@ public class WifiConfigActivity extends AppCompatActivity implements SunmiPrinte
     @Override
     public void sendDataFail(int code, String msg) {
         // Called when data send fails
+        Log.e(TAG, "Send data failed - Code: " + code + ", Message: " + msg);
         runOnUiThread(() -> {
             scanProgressBar.setVisibility(View.GONE);
             scanWifiButton.setEnabled(true);

@@ -2,14 +2,12 @@ package com.sunmi.printerconfig;
 
 import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ProgressBar;
@@ -22,48 +20,33 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.sunmi.cloudprinter.bean.PrinterDevice;
+import com.sunmi.cloudprinter.bean.Router;
+import com.sunmi.cloudprinter.presenter.SunmiPrinterClient;
 
-public class MainActivity extends AppCompatActivity {
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+public class MainActivity extends AppCompatActivity implements SunmiPrinterClient.IPrinterClient {
+    private static final String TAG = "MainActivity";
     private static final int PERMISSION_REQUEST_CODE = 1;
     private static final int REQUEST_ENABLE_BT = 2;
+    private static final int SCAN_TIMEOUT = 15000; // 15 seconds
 
     private BluetoothAdapter bluetoothAdapter;
     private Button scanButton;
     private ProgressBar progressBar;
     private TextView statusText;
     private RecyclerView devicesRecyclerView;
-    private BluetoothDeviceAdapter deviceAdapter;
-    private List<BluetoothDevice> deviceList;
+    private PrinterDeviceAdapter deviceAdapter;
+    private List<PrinterDevice> deviceList;
+    private Set<String> foundMacAddresses;
 
-    private final BroadcastReceiver bluetoothReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            String action = intent.getAction();
-            if (BluetoothDevice.ACTION_FOUND.equals(action)) {
-                BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                if (device != null && checkBluetoothPermission()) {
-                    // Show ALL devices (removed filter to help debugging)
-                    // This allows you to see all Bluetooth devices
-                    if (!deviceList.contains(device)) {
-                        deviceList.add(device);
-                        deviceAdapter.notifyDataSetChanged();
-                        statusText.setText("");
-                    }
-                }
-            } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
-                progressBar.setVisibility(View.GONE);
-                scanButton.setEnabled(true);
-                scanButton.setText(R.string.scan_bluetooth);
-                if (deviceList.isEmpty()) {
-                    statusText.setText(R.string.no_devices_found);
-                } else {
-                    statusText.setText("Found " + deviceList.size() + " device(s)");
-                }
-            }
-        }
-    };
+    private SunmiPrinterClient sunmiPrinterClient;
+    private Handler scanTimeoutHandler;
+    private Runnable scanTimeoutRunnable;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,7 +59,8 @@ public class MainActivity extends AppCompatActivity {
         devicesRecyclerView = findViewById(R.id.devicesRecyclerView);
 
         deviceList = new ArrayList<>();
-        deviceAdapter = new BluetoothDeviceAdapter(deviceList, this::onDeviceClick);
+        foundMacAddresses = new HashSet<>();
+        deviceAdapter = new PrinterDeviceAdapter(deviceList, this::onDeviceClick);
 
         devicesRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         devicesRecyclerView.setAdapter(deviceAdapter);
@@ -88,18 +72,26 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        // Initialize Sunmi Printer Client
+        sunmiPrinterClient = new SunmiPrinterClient(this, this);
+
+        scanTimeoutHandler = new Handler();
+        scanTimeoutRunnable = () -> {
+            stopScan();
+            if (deviceList.isEmpty()) {
+                statusText.setText(R.string.no_devices_found);
+            } else {
+                statusText.setText("Found " + deviceList.size() + " printer(s)");
+            }
+        };
+
         scanButton.setOnClickListener(v -> {
             if (checkPermissions()) {
-                startBluetoothScan();
+                startPrinterScan();
             } else {
                 requestPermissions();
             }
         });
-
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(BluetoothDevice.ACTION_FOUND);
-        filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
-        registerReceiver(bluetoothReceiver, filter);
 
         // Request permissions at startup
         if (!checkPermissions()) {
@@ -137,72 +129,108 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private boolean checkBluetoothPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            return ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED;
-        }
-        return true;
-    }
-
-    private void startBluetoothScan() {
+    private void startPrinterScan() {
         if (!bluetoothAdapter.isEnabled()) {
             Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            if (checkBluetoothPermission()) {
-                startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-            }
+            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
             return;
         }
 
+        Log.d(TAG, "Starting Sunmi BLE printer scan");
         deviceList.clear();
+        foundMacAddresses.clear();
         deviceAdapter.notifyDataSetChanged();
         statusText.setText(R.string.scanning);
-
-        if (checkBluetoothPermission() && bluetoothAdapter.isDiscovering()) {
-            bluetoothAdapter.cancelDiscovery();
-        }
-
-        // First, add already paired devices to the list
-        if (checkBluetoothPermission()) {
-            try {
-                java.util.Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
-                if (pairedDevices != null && !pairedDevices.isEmpty()) {
-                    for (BluetoothDevice device : pairedDevices) {
-                        if (!deviceList.contains(device)) {
-                            deviceList.add(device);
-                        }
-                    }
-                    deviceAdapter.notifyDataSetChanged();
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
 
         scanButton.setEnabled(false);
         scanButton.setText(R.string.scanning);
         progressBar.setVisibility(View.VISIBLE);
 
-        // Then start discovery for new devices
-        if (checkBluetoothPermission()) {
-            bluetoothAdapter.startDiscovery();
-        }
+        // Start scan using Sunmi SDK
+        sunmiPrinterClient.startScan();
+
+        // Set timeout
+        scanTimeoutHandler.postDelayed(scanTimeoutRunnable, SCAN_TIMEOUT);
     }
 
-    private void onDeviceClick(BluetoothDevice device) {
-        if (checkBluetoothPermission() && bluetoothAdapter.isDiscovering()) {
-            bluetoothAdapter.cancelDiscovery();
-        }
+    private void stopScan() {
+        Log.d(TAG, "Stopping printer scan");
+        sunmiPrinterClient.stopScan();
+        scanButton.setEnabled(true);
+        scanButton.setText(R.string.scan_bluetooth);
+        progressBar.setVisibility(View.GONE);
+        scanTimeoutHandler.removeCallbacks(scanTimeoutRunnable);
+    }
 
-        String deviceAddress = device.getAddress();
-        String deviceName = "Unknown";
-        if (checkBluetoothPermission()) {
-            deviceName = device.getName() != null ? device.getName() : "Unknown";
-        }
+    private void onDeviceClick(PrinterDevice device) {
+        Log.d(TAG, "Device clicked: " + device.getName() + " - " + device.getAddress());
+        stopScan();
 
         Intent intent = new Intent(this, WifiConfigActivity.class);
-        intent.putExtra("device_address", deviceAddress);
-        intent.putExtra("device_name", deviceName);
+        intent.putExtra("device_address", device.getAddress());
+        intent.putExtra("device_name", device.getName() != null ? device.getName() : "Unknown");
         startActivity(intent);
+    }
+
+    // SunmiPrinterClient.IPrinterClient callbacks
+
+    @Override
+    public void onPrinterFount(PrinterDevice printerDevice) {
+        Log.d(TAG, "Printer found: " + printerDevice.getName() + " - " + printerDevice.getAddress());
+
+        runOnUiThread(() -> {
+            if (!foundMacAddresses.contains(printerDevice.getAddress())) {
+                foundMacAddresses.add(printerDevice.getAddress());
+                deviceList.add(printerDevice);
+                deviceAdapter.notifyDataSetChanged();
+                statusText.setText("Found " + deviceList.size() + " printer(s)");
+            }
+        });
+    }
+
+    @Override
+    public void sendDataFail(int code, String msg) {
+        Log.e(TAG, "Send data failed: " + code + " - " + msg);
+    }
+
+    @Override
+    public void getSnRequestSuccess() {
+        // Not used in scanning
+    }
+
+    @Override
+    public void onSnReceived(String sn) {
+        // Not used in scanning
+    }
+
+    @Override
+    public void onGetWifiListFinish() {
+        // Not used in scanning
+    }
+
+    @Override
+    public void onGetWifiListFail() {
+        // Not used in scanning
+    }
+
+    @Override
+    public void onSetWifiSuccess() {
+        // Not used in scanning
+    }
+
+    @Override
+    public void wifiConfigSuccess() {
+        // Not used in scanning
+    }
+
+    @Override
+    public void onWifiConfigFail() {
+        // Not used in scanning
+    }
+
+    @Override
+    public void routerFound(Router router) {
+        // Not used in scanning
     }
 
     @Override
@@ -227,13 +255,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        try {
-            unregisterReceiver(bluetoothReceiver);
-        } catch (Exception e) {
-            e.printStackTrace();
+        if (sunmiPrinterClient != null) {
+            sunmiPrinterClient.stopScan();
         }
-        if (bluetoothAdapter != null && checkBluetoothPermission() && bluetoothAdapter.isDiscovering()) {
-            bluetoothAdapter.cancelDiscovery();
-        }
+        scanTimeoutHandler.removeCallbacks(scanTimeoutRunnable);
     }
 }
