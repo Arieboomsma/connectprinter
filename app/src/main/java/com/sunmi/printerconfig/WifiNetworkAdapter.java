@@ -8,17 +8,19 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.sunmi.cloudprinter.bean.Router;
+
 import java.util.List;
 
 public class WifiNetworkAdapter extends RecyclerView.Adapter<WifiNetworkAdapter.ViewHolder> {
-    private final List<String> networks;
+    private final List<Router> networks;
     private final OnNetworkClickListener listener;
 
     public interface OnNetworkClickListener {
-        void onNetworkClick(String ssid);
+        void onNetworkClick(Router router);
     }
 
-    public WifiNetworkAdapter(List<String> networks, OnNetworkClickListener listener) {
+    public WifiNetworkAdapter(List<Router> networks, OnNetworkClickListener listener) {
         this.networks = networks;
         this.listener = listener;
     }
@@ -33,9 +35,13 @@ public class WifiNetworkAdapter extends RecyclerView.Adapter<WifiNetworkAdapter.
 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        String ssid = networks.get(position);
-        holder.networkName.setText(ssid);
-        holder.itemView.setOnClickListener(v -> listener.onNetworkClick(ssid));
+        Router router = networks.get(position);
+        String displayName = router.getName();
+        if (router.isHasPwd()) {
+            displayName += " 🔒";
+        }
+        holder.networkName.setText(displayName);
+        holder.itemView.setOnClickListener(v -> listener.onNetworkClick(router));
     }
 
     @Override

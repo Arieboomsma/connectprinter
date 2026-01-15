@@ -193,8 +193,15 @@ public class MainActivity extends AppCompatActivity {
             bluetoothAdapter.cancelDiscovery();
         }
 
+        String deviceAddress = device.getAddress();
+        String deviceName = "Unknown";
+        if (checkBluetoothPermission()) {
+            deviceName = device.getName() != null ? device.getName() : "Unknown";
+        }
+
         Intent intent = new Intent(this, WifiConfigActivity.class);
-        intent.putExtra("device", device);
+        intent.putExtra("device_address", deviceAddress);
+        intent.putExtra("device_name", deviceName);
         startActivity(intent);
     }
 
