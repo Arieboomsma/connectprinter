@@ -81,47 +81,74 @@ public class PrinterConfigHelper {
 
     /**
      * Send Wi-Fi configuration to the printer
-     * This uses ESC/POS commands specific to Sunmi printers
+     * Tries multiple command formats for maximum compatibility
      */
     private boolean sendWifiConfig(OutputStream out, String ssid, String password) {
         try {
-        // ESC/POS command header for Sunmi Wi-Fi configuration
-        // Format: ESC @ (initialize printer)
-        // Then: Custom command for Wi-Fi setup
+            byte[] ssidBytes = ssid.getBytes(StandardCharsets.UTF_8);
+            byte[] passwordBytes = password.getBytes(StandardCharsets.UTF_8);
 
-        // Initialize printer
-        out.write(new byte[]{0x1B, 0x40}); // ESC @
-        Thread.sleep(100);
+            Log.d(TAG, "Attempting WiFi configuration...");
+            Log.d(TAG, "SSID: " + ssid + " (" + ssidBytes.length + " bytes)");
+            Log.d(TAG, "Password: " + passwordBytes.length + " bytes");
 
-        // Sunmi Wi-Fi configuration command format:
-        // Command structure: 0x1F 0x1B 0x1F [subcommand] [data length] [SSID] [password]
+            // Initialize printer
+            out.write(new byte[]{0x1B, 0x40}); // ESC @
+            out.flush();
+            Thread.sleep(200);
 
-        // Method 1: Using Sunmi's proprietary Wi-Fi config command
-        // Header: 0x1F 0x1B 0x1F 0x91 (Wi-Fi config command)
-        byte[] header = new byte[]{0x1F, 0x1B, 0x1F, (byte)0x91};
-        out.write(header);
+            // Try Format 1: Sunmi proprietary format with complete packet
+            Log.d(TAG, "Trying Format 1: Sunmi proprietary packet");
+            out.write(new byte[]{0x1F, 0x1B, 0x1F, (byte)0x91});
+            out.write((byte)ssidBytes.length);
+            out.write(ssidBytes);
+            out.write((byte)passwordBytes.length);
+            out.write(passwordBytes);
+            out.write(0x03); // WPA2-PSK
+            out.flush();
+            Thread.sleep(1000);
 
-        // SSID length (1 byte) + SSID
-        byte[] ssidBytes = ssid.getBytes(StandardCharsets.UTF_8);
-        out.write(ssidBytes.length);
-        out.write(ssidBytes);
+            // Try Format 2: Alternative Sunmi format with length prefix
+            Log.d(TAG, "Trying Format 2: Length-prefixed format");
+            int totalLen = ssidBytes.length + passwordBytes.length + 2;
+            out.write(new byte[]{0x1B, 0x1F, 0x91});
+            out.write((byte)totalLen);
+            out.write((byte)ssidBytes.length);
+            out.write(ssidBytes);
+            out.write((byte)passwordBytes.length);
+            out.write(passwordBytes);
+            out.flush();
+            Thread.sleep(1000);
 
-        // Password length (1 byte) + Password
-        byte[] passwordBytes = password.getBytes(StandardCharsets.UTF_8);
-        out.write(passwordBytes.length);
-        out.write(passwordBytes);
+            // Try Format 3: Simple concatenation format
+            Log.d(TAG, "Trying Format 3: Simple format");
+            String simpleCmd = String.format("WIFI_SET:%s,%s\n", ssid, password);
+            out.write(simpleCmd.getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            Thread.sleep(1000);
 
-        // Security type (1 byte): 3 = WPA2-PSK (most common)
-        out.write(0x03);
+            // Try Format 4: JSON-style format (some printers use this)
+            Log.d(TAG, "Trying Format 4: JSON format");
+            String jsonCmd = String.format("{\"ssid\":\"%s\",\"pwd\":\"%s\"}\n", ssid, password);
+            out.write(jsonCmd.getBytes(StandardCharsets.UTF_8));
+            out.flush();
+            Thread.sleep(1000);
 
-        out.flush();
-        Thread.sleep(500);
+            // Try Format 5: Extended ESC/POS format
+            Log.d(TAG, "Trying Format 5: Extended ESC/POS");
+            out.write(new byte[]{0x1D, 0x28, 0x46}); // GS ( F - Extended function
+            out.write((byte)(ssidBytes.length + passwordBytes.length + 4)); // Length
+            out.write(0x00); // pL
+            out.write(0x05); // fn = 5 (network config)
+            out.write((byte)ssidBytes.length);
+            out.write(ssidBytes);
+            out.write((byte)passwordBytes.length);
+            out.write(passwordBytes);
+            out.flush();
+            Thread.sleep(1000);
 
-        Log.d(TAG, "Wi-Fi configuration command sent to printer");
-        Log.d(TAG, "SSID: " + ssid + " (" + ssidBytes.length + " bytes)");
-        Log.d(TAG, "Password: " + passwordBytes.length + " bytes");
-
-        return true;
+            Log.d(TAG, "All WiFi configuration formats sent");
+            return true;
 
         } catch (IOException | InterruptedException e) {
             Log.e(TAG, "Error sending Wi-Fi config: " + e.getMessage());
