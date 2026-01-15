@@ -13,6 +13,8 @@
     <string name="connect">Connect</string>
     <string name="connecting">Connecting...</string>
     <string name="select_wifi">Select Wi-Fi Network</string>
+    <string name="wifi_network_name">Wi-Fi Network Name (SSID)</string>
+    <string name="enter_wifi_name">Enter your Wi-Fi network name</string>
     <string name="wifi_password">Wi-Fi Password</string>
     <string name="configure_printer">Configure Printer</string>
     <string name="configuring">Configuring...</string>

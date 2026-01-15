@@ -2,39 +2,27 @@ package com.sunmi.printerconfig;
 
 import android.Manifest;
 import android.bluetooth.BluetoothDevice;
-import android.content.Context;
 import android.content.pm.PackageManager;
-import android.net.wifi.WifiConfiguration;
-import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ProgressBar;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class WifiConfigActivity extends AppCompatActivity {
-    private static final int PERMISSION_REQUEST_CODE = 3;
-
     private BluetoothDevice device;
     private TextView printerNameText;
-    private Spinner wifiSpinner;
+    private EditText ssidInput;
     private EditText passwordInput;
     private Button configureButton;
     private ProgressBar progressBar;
     private TextView statusText;
-    private WifiManager wifiManager;
     private PrinterConfigHelper printerHelper;
 
     @Override
@@ -50,13 +38,12 @@ public class WifiConfigActivity extends AppCompatActivity {
         }
 
         printerNameText = findViewById(R.id.printerNameText);
-        wifiSpinner = findViewById(R.id.wifiSpinner);
+        ssidInput = findViewById(R.id.ssidInput);
         passwordInput = findViewById(R.id.passwordInput);
         configureButton = findViewById(R.id.configureButton);
         progressBar = findViewById(R.id.progressBar);
         statusText = findViewById(R.id.statusText);
 
-        wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         printerHelper = new PrinterConfigHelper(this);
 
         boolean hasPermission = true;
@@ -70,68 +57,24 @@ public class WifiConfigActivity extends AppCompatActivity {
             printerNameText.setText(getString(R.string.connected_to, deviceName != null ? deviceName : "Unknown"));
         }
 
-        loadWifiNetworks();
-
         configureButton.setOnClickListener(v -> {
-            String selectedSsid = (String) wifiSpinner.getSelectedItem();
+            String ssid = ssidInput.getText().toString().trim();
             String password = passwordInput.getText().toString();
 
-            if (selectedSsid == null || selectedSsid.isEmpty()) {
-                Toast.makeText(this, "Please select a Wi-Fi network", Toast.LENGTH_SHORT).show();
+            if (ssid.isEmpty()) {
+                Toast.makeText(this, "Please enter Wi-Fi network name", Toast.LENGTH_SHORT).show();
+                ssidInput.requestFocus();
                 return;
             }
 
             if (password.isEmpty()) {
                 Toast.makeText(this, "Please enter Wi-Fi password", Toast.LENGTH_SHORT).show();
+                passwordInput.requestFocus();
                 return;
             }
 
-            configurePrinter(selectedSsid, password);
+            configurePrinter(ssid, password);
         });
-    }
-
-    private void loadWifiNetworks() {
-        if (!checkWifiPermissions()) {
-            requestWifiPermissions();
-            return;
-        }
-
-        List<String> networkList = new ArrayList<>();
-
-        // Get configured networks (the tablet's saved networks)
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            List<WifiConfiguration> configs = wifiManager.getConfiguredNetworks();
-            if (configs != null) {
-                for (WifiConfiguration config : configs) {
-                    String ssid = config.SSID.replace("\"", "");
-                    if (!networkList.contains(ssid)) {
-                        networkList.add(ssid);
-                    }
-                }
-            }
-        }
-
-        // Add some common network detection
-        // Note: On Android 10+, scanning requires location and is limited
-        if (networkList.isEmpty()) {
-            // Add placeholder for manual entry if scanning fails
-            networkList.add("Enter manually below");
-        }
-
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
-            android.R.layout.simple_spinner_item, networkList);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        wifiSpinner.setAdapter(adapter);
-    }
-
-    private boolean checkWifiPermissions() {
-        return ContextCompat.checkSelfPermission(this,
-            Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-    }
-
-    private void requestWifiPermissions() {
-        ActivityCompat.requestPermissions(this,
-            new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, PERMISSION_REQUEST_CODE);
     }
 
     private void configurePrinter(String ssid, String password) {
@@ -150,7 +93,7 @@ public class WifiConfigActivity extends AppCompatActivity {
 
                     if (success) {
                         statusText.setText(R.string.success);
-                        Toast.makeText(this, R.string.success, Toast.LENGTH_LONG).show();
+                        Toast.makeText(this, "Printer configured successfully!\nIt should connect to Wi-Fi shortly.", Toast.LENGTH_LONG).show();
                         // Return to main activity after success
                         finish();
                     } else {
@@ -168,25 +111,5 @@ public class WifiConfigActivity extends AppCompatActivity {
                 });
             }
         }).start();
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == PERMISSION_REQUEST_CODE) {
-            boolean allGranted = true;
-            for (int result : grantResults) {
-                if (result != PackageManager.PERMISSION_GRANTED) {
-                    allGranted = false;
-                    break;
-                }
-            }
-            if (allGranted) {
-                loadWifiNetworks();
-            } else {
-                Toast.makeText(this, "Permissions required to scan Wi-Fi networks",
-                    Toast.LENGTH_SHORT).show();
-            }
-        }
     }
 }

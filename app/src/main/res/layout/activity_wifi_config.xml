@@ -33,15 +33,17 @@
         android:id="@+id/wifiLabel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/select_wifi"
+        android:text="@string/wifi_network_name"
         android:textSize="16sp"
         app:layout_constraintTop_toBottomOf="@id/printerNameText"
         android:layout_marginTop="32dp"/>
 
-    <Spinner
-        android:id="@+id/wifiSpinner"
+    <EditText
+        android:id="@+id/ssidInput"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:hint="@string/enter_wifi_name"
+        android:inputType="text"
         app:layout_constraintTop_toBottomOf="@id/wifiLabel"
         android:layout_marginTop="8dp"
         android:minHeight="48dp"/>
@@ -52,7 +54,7 @@
         android:layout_height="wrap_content"
         android:text="@string/wifi_password"
         android:textSize="16sp"
-        app:layout_constraintTop_toBottomOf="@id/wifiSpinner"
+        app:layout_constraintTop_toBottomOf="@id/ssidInput"
         android:layout_marginTop="24dp"/>
 
     <EditText
