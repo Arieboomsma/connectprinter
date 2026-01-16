@@ -156,11 +156,20 @@ public class MainActivity extends AppCompatActivity implements SunmiPrinterClien
         scanButton.setText(R.string.scanning);
         progressBar.setVisibility(View.VISIBLE);
 
-        // Start scan using Sunmi SDK
-        sunmiPrinterClient.startScan();
+        try {
+            // Start scan using Sunmi SDK
+            sunmiPrinterClient.startScan();
 
-        // Set timeout
-        scanTimeoutHandler.postDelayed(scanTimeoutRunnable, SCAN_TIMEOUT);
+            // Set timeout
+            scanTimeoutHandler.postDelayed(scanTimeoutRunnable, SCAN_TIMEOUT);
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException when starting scan - permissions not granted", e);
+            scanButton.setEnabled(true);
+            scanButton.setText(R.string.scan_bluetooth);
+            progressBar.setVisibility(View.GONE);
+            statusText.setText("Permission error");
+            Toast.makeText(this, "Bluetooth permissions not granted. Please grant all permissions and try again.", Toast.LENGTH_LONG).show();
+        }
     }
 
     private void stopScan() {
@@ -173,8 +182,21 @@ public class MainActivity extends AppCompatActivity implements SunmiPrinterClien
     }
 
     private void onDeviceClick(PrinterDevice device) {
+        String deviceName = "Unknown";
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+                    deviceName = device.getName() != null ? device.getName() : "Unknown";
+                }
+            } else {
+                deviceName = device.getName() != null ? device.getName() : "Unknown";
+            }
+        } catch (SecurityException e) {
+            Log.w(TAG, "Cannot access device name", e);
+        }
+
         Log.d(TAG, "========================================");
-        Log.d(TAG, "DEVICE CLICKED: " + device.getName() + " (" + device.getAddress() + ")");
+        Log.d(TAG, "DEVICE CLICKED: " + deviceName + " (" + device.getAddress() + ")");
         Log.d(TAG, "========================================");
         stopScan();
 
@@ -189,18 +211,38 @@ public class MainActivity extends AppCompatActivity implements SunmiPrinterClien
         // Start connection timeout
         connectionTimeoutHandler.postDelayed(connectionTimeoutRunnable, CONNECTION_TIMEOUT);
 
-        // CRITICAL: Call getPrinterSn to establish BLE connection
-        // This MUST be called before any WiFi operations
-        Log.d(TAG, "Calling getPrinterSn() to establish BLE connection...");
-        sunmiPrinterClient.getPrinterSn(device.getAddress());
-        Log.d(TAG, "getPrinterSn() called successfully");
+        try {
+            // CRITICAL: Call getPrinterSn to establish BLE connection
+            // This MUST be called before any WiFi operations
+            Log.d(TAG, "Calling getPrinterSn() to establish BLE connection...");
+            sunmiPrinterClient.getPrinterSn(device.getAddress());
+            Log.d(TAG, "getPrinterSn() called successfully");
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException when calling getPrinterSn", e);
+            connectionTimeoutHandler.removeCallbacks(connectionTimeoutRunnable);
+            showConnectionError("Permission Error", "Bluetooth permission not granted. Please grant all permissions and try again.");
+        }
     }
 
     // SunmiPrinterClient.IPrinterClient callbacks
 
     @Override
     public void onPrinterFount(PrinterDevice printerDevice) {
-        Log.d(TAG, "Printer found: " + printerDevice.getName() + " - " + printerDevice.getAddress());
+        String deviceName = "Unknown";
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) {
+                    deviceName = printerDevice.getName() != null ? printerDevice.getName() : "Unknown";
+                }
+            } else {
+                deviceName = printerDevice.getName() != null ? printerDevice.getName() : "Unknown";
+            }
+        } catch (SecurityException e) {
+            Log.w(TAG, "Cannot access device name without permission", e);
+        }
+
+        final String finalDeviceName = deviceName;
+        Log.d(TAG, "Printer found: " + finalDeviceName + " - " + printerDevice.getAddress());
 
         runOnUiThread(() -> {
             if (!foundMacAddresses.contains(printerDevice.getAddress())) {
